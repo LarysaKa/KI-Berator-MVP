@@ -19,5 +19,6 @@ The "KI-Karriere-Berater" addresses the issue of "Brain Waste" in the German lab
 - Semantic analysis only.
 - GDPR-compliant architecture.
 
----
-*This project is a prototype candidate for the Prototype Fund (Round 02).*
+## 🚀 Current Status
+The prototype logic is fully functional (see `career_agent_workflow.json`).
+**Note:** The live Telegram bot instance is currently **paused** to manage API costs (OpenAI/ElevenLabs) during the application phase.
