@@ -1,0 +1,2105 @@
+{
+  "name": "career_agent_workflow.json",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "callback_query",
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -64,
+        -240
+      ],
+      "id": "24ba1bc3-e462-4cc0-95a3-ad05fbb060aa",
+      "name": "Telegram Trigger",
+      "webhookId": "bdf820d2-7df0-4d57-962e-9732e0376582",
+      "credentials": {
+        "telegramApi": {
+          "id": "yVyE4BV71UHxkFNz",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d4725248-28a4-417d-aade-725fb75f0702",
+                    "leftValue": "={{ $('Telegram Trigger').item.json.callback_query.data }}",
+                    "rightValue": "FIND_COURSES_848",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "arbeitsuche"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c890b096-07c8-48b9-bc44-6846257f01bf",
+                    "leftValue": "={{ $('Telegram Trigger').item.json.callback_query.data }}",
+                    "rightValue": "FIND_COURSES_737",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "weiterbild"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        432,
+        -112
+      ],
+      "id": "3e7e0c45-0b01-48ad-a241-3ab20a1da6de",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "profile",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "external_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.external_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        768,
+        -96
+      ],
+      "id": "8f897fc8-74a7-4dcf-b444-a70169fcf803",
+      "name": "Get many rows",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "SLeID1KVZwTXTsn0",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        944,
+        -192
+      ],
+      "id": "cded4cdd-1b3c-4d19-9124-902630daac67",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "f0nE3F7bRpEdiV4i",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=**Agent Role:**\nYou are an expert German Career Consultant (`Berufsberater`) and a KURSNET/Google Search Expert.\nYour goal is to generate a **comprehensive list of EDUCATION & TRAINING search terms** (Not Jobs!) for ANY candidate profile (from unskilled to expert).\n\n**Primary Goal:**\nAnalyze the user's profile (`hard_skills_ai`, `potenzialanalyse_ai`, `empfehlung_ai`, `erfahrung_in_deutschland`) and generate relevant course search queries.\n\n**CRITICAL Final Output:**\nYour final output MUST be *only* the **valid JSON object**.\n\n---\n**INPUT DATA:**\n{{ $json }}\n---\n\n**FINAL INSTRUCTIONS: RULES**\n\n<INSTRUCTIONS_FOR_AGENT>\n\n**1. Language & Location (MOBILITY AWARE):**\n* `search_query` MUST be in **German**.\n* **LOCATION LOGIC (CRITICAL):**\n    * Check the user's `blocker_ai` for \"Mobilität\" / \"Führerschein: Nein\".\n    * **IF NO CAR:** Do NOT default to the distant capital city (like Saarbrücken).\n        * Instead, find the **closest** medium-sized town (Mittelzentrum) or use a tight radius.\n        * *Example:* For \"Spiesen-Elversberg\", choose **\"Neunkirchen (Saar)\"** or **\"Spiesen-Elversberg Umkreis 15km\"**.\n    * **IF HAS CAR:** You can generalize to the major city (e.g., Saarbrücken).\n    * **DEFAULT:** If unsure, strictly use: **\"[Input City] Umkreis 20km\"**.\n\n**2. The \"Prefix\" Rule (CRITICAL):**\n* You are searching for EDUCATION. Every keyword MUST start with a specific prefix based on the level:\n    * **\"Weiterbildung ...\"** (For experienced people upgrading skills).\n    * **\"Umschulung ...\"** (For career changers needing a new profession).\n    * **\"Ausbildung ...\"** (For young people or total beginners).\n    * **\"Kurs ...\"** (General courses, e.g., language or software).\n    * **\"Zertifikat ...\"** (Specific certificates).\n\n**3. STRATEGY GENERATION (Universal Logic):**\nAnalyze the profile and generate keywords for **ALL** applicable strategies below:\n\n* **STRATEGY A: The \"Upgrade\" (Deepen existing skills):**\n    * *Trigger:* Candidate has `hard_skills_ai`.\n    * *Action:* Add \"Weiterbildung [Skill]\" or \"Kurs [Tool]\".\n    * *Example:* Mechanic -> \"Weiterbildung Kraftfahrzeugtechnik\", \"Kurs Hochvolttechnik\".\n\n* **STRATEGY B: The \"Pivot\" (Career Change / Hobby):**\n    * *Trigger:* `potenzialanalyse_ai` suggests a new interest OR `empfehlung_ai` suggests a new role.\n    * *Action:* Add \"Umschulung [New Role]\".\n    * *Example:* Mechanic wants Office -> \"Umschulung Büromanagement\", \"Weiterbildung Technischer Fachwirt\".\n    * *Example:* Hobby Gardener -> \"Umschulung Gärtner\".\n\n* **STRATEGY C: The \"Newcomer / Orientation\" (Zero Skills):**\n    * *Trigger:* `hard_skills_ai` is empty OR candidate is unsure.\n    * *Action:* Search for orientation and basics.\n    * *Keywords:* \"Berufsvorbereitende Bildungsmaßnahme (BvB)\", \"Berufsorientierung\", \"Coaching zur beruflichen Neuorientierung\", \"Einstiegsqualifizierung (EQ)\", \"Grundkompetenzen Kurs\".\n\n* **STRATEGY D: The \"German Experience Booster\":**\n    * *Trigger:* `erfahrung_in_deutschland` contains a specific activity (e.g., \"care for elderly\").\n    * *Action:* Search for the official qualification for that activity.\n    * *Example:* \"Did care\" -> \"Kurs Betreuungskraft §43b\", \"Pflegebasiskurs\".\n\n**4. JSON Output Rule:**\n* Return a valid JSON object with `search_terms` (Array of strings), `location_to_search`, and `sprache`.\n* **DO NOT COPY EXAMPLES.** Generate terms strictly based on the INPUT DATA.\n\n**Example Output (Structure):**\n{\n  \"search_terms\": [\n    \"Weiterbildung [Main Skill 1]\",\n    \"Umschulung [Recommended New Role]\",\n    \"Kurs [Specific Software/Tool]\",\n    \"Zertifikat Deutsch B2 Beruf\",\n    \"Berufsorientierung\"\n  ],\n  \"location_to_search\": \"Berlin\",\n  \"sprache\": \"RU\"\n}\n\n</INSTRUCTIONS_FOR_AGENT>"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        912,
+        -96
+      ],
+      "id": "acdb9b72-0596-4942-8cb4-27b7b877a0c6",
+      "name": "Weiter_suche"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Получаем ВСЕ 12 входящих JSON-ответов от Perplexity\nconst items = $input.all();\nconst outputItems = [];\nconst uniqueUrls = new Set(); \n\n// 2. Инициализация данных для \"проброса\"\n// Безопасный доступ к сырому контенту первого элемента с использованием Optional Chaining (?.)\nconst rawContent = items[0].json.choices?.[0]?.message?.content || items[0].json.content;\n\nlet profileId = null;\nlet sprache = null;\n\ntry {\n    if (rawContent) {\n        // Очистка и Парсинг (выносим это в начало, чтобы получить ID и язык)\n        const cleanedContent = rawContent.replace(/```json\\n/g, '').replace(/\\n```/g, '').trim();\n        const parsedData = JSON.parse(cleanedContent);\n        \n        // Безопасное извлечение ID и языка\n        profileId = parsedData.profile_id || null;\n        sprache = parsedData.sprache || null;\n    }\n} catch (e) {\n    // В случае ошибки парсинга, профиль и язык останутся null\n    console.error(\"Ошибка парсинга исходных данных клиента:\", e);\n}\n\nif (!profileId) {\n    return [{ json: { error: \"Не удалось найти profile_id для привязки данных.\" } }];\n}\n\n// 3. Перебираем все 12 результатов от Message a model\nfor (const item of items) {\n    try {\n        // Получаем JSON-строку, которую вернул Perplexity\n        let jsonContent = item.json.choices ? item.json.choices[0].message.content : item.json.content;\n        \n        // Очистка и Парсинг (Необходимо, так как это JSON внутри строки)\n        jsonContent = jsonContent.replace(/```json\\n/g, '').replace(/\\n```/g, '').trim();    \n        const jsonOutput = JSON.parse(jsonContent);\n\n        // 4. Проверяем наличие массива результатов и перебираем его\n        if (jsonOutput.results && Array.isArray(jsonOutput.results)) {\n            for (const kurs of jsonOutput.results) {\n                \n                // 5. Фильтр дубликатов (по URL) и валидность данных\n                if (kurs.url && !uniqueUrls.has(kurs.url)) {\n                    uniqueUrls.add(kurs.url);\n                    \n                    // 6. Создаем новый, чистый объект для Supabase\n                    outputItems.push({\n                        json: {\n                            profile_id: profileId, // Приклеиваем ID клиента\n                            sprache: sprache, // Приклеиваем язык\n                            title: kurs.title,\n                            provider: kurs.provider,\n                            location: kurs.location,\n                            url: kurs.url\n                        }\n                    });\n                }\n            }\n        }\n    } catch (e) {\n        // Игнорируем элементы, которые не удалось распарсить\n        console.warn(\"Пропущен элемент из-за ошибки парсинга в цикле:\", e);\n    }\n}\n\n// 7. Возвращаем единый, чистый массив, готовый для Bulk Insert\nreturn outputItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        -96
+      ],
+      "id": "570f28fc-9459-4381-860e-2c43c2e9107e",
+      "name": "Aggregator v1"
+    },
+    {
+      "parameters": {
+        "tableId": "suggested_courses",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "profile_id",
+              "fieldValue": "={{ $json.profile_id }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.title }}"
+            },
+            {
+              "fieldId": "provider",
+              "fieldValue": "={{ $json.provider }}"
+            },
+            {
+              "fieldId": "location",
+              "fieldValue": "={{ $json.location }}"
+            },
+            {
+              "fieldId": "url",
+              "fieldValue": "={{ $json.url }}"
+            },
+            {
+              "fieldId": "sprache",
+              "fieldValue": "={{ $json.sprache }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1664,
+        -96
+      ],
+      "id": "ce087863-3399-4ba5-a9e5-79655ae29df5",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "KbNOAJv6YjMDi3FY",
+          "name": "Supabase account 3"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "messages": {
+          "message": [
+            {
+              "content": "=**Agent Role:**\nYou are an expert web researcher (\"Web-Recherche-Experte\") for the German education market.\n\n**Primary Goal:**\nYou will receive a **single search query** from the user (e.g., \"Weiterbildung Qualitätsmanagement Saarbrücken\"). Your goal is to **execute this search** and find 3-5 **real, relevant course URLs** from **high-authority German websites**.\n\n**CRITICAL Final Output:**\nYour final output MUST be *only* a **valid JSON object** with a single key: \"results\". The value must be an array of objects.\n\n---\n**INPUT DATA (The Search Query):**\n{{ $json.search_term }} {{ $json.location_to_search }}\n---\n**USER DATA (To pass through):**\n(Profile ID: {{ $json.profile_id }})\n(Sprache: {{ $json.sprache }})\n---\n\n**FINAL INSTRUCTIONS: RULES FOR YOUR RESPONSE**\n\n<INSTRUCTIONS_FOR_AGENT>\n\n**1. Search Execution:**\n* Execute the search query from the INPUT DATA.\n\n**2. Authority Site Filtering (CRITICAL):**\n* You MUST **prioritize** results from this **\"Whitelist\"**:\n    * `mein-now.de` (The new portal from Arbeitsagentur)\n    * `cbw-weiterbildung.de`\n    * `ihk.de` (Industrie- und Handelskammer)\n    * `hwk.de` (Handwerkskammer)\n    * `alfatraining.com`\n    * `dekra-akademie.de`\n    * `tuev-nord.de` / `tuv-sud.de`\n\n**3. Output Filtering (CRITICAL):**\n* You MUST **IGNORE** `Ausbildung` (basic apprenticeships).\n* You MUST **IGNORE** `Jobs` (vacancies).\n* You MUST **FOCUS** only on `Weiterbildung` (courses) and `Umschulung` (retraining).\n\n**4. JSON Output Rule (CRITICAL):**\n* Your final output MUST be a valid JSON object.\n* You MUST **\"pass through\"** the `profile_id` and `sprache` from the USER DATA section.\n* If you find a good result, extract its `title`, `provider`, `location`, and `url`.\n\n**Example Output:**\n{\n  \"profile_id\": {{ $json.profile_id }},\n  \"sprache\": \"{{ $json.sprache }}\",\n  \"results\": [\n    {\n      \"title\": \"Zertifizierter Qualitätsmanagement-Beauftragter (IHK)\",\n      \"provider\": \"IHK Saarland\",\n      \"location\": \"Saarbrücken\",\n      \"url\": \"https://www.ihk.de/saarland/...\"\n    },\n    {\n      \"title\": \"Umschulung Prozessmanagement (Online)\",\n      \"provider\": \"alfatraining Bildungszentrum GmbH\",\n      \"location\": \"Online\",\n      \"url\": \"https://www.alfatraining.com/...\"\n    }\n  ]\n}\n\n</INSTRUCTIONS_FOR_AGENT>",
+              "role": "system"
+            },
+            {
+              "content": "=Search Query: \"{{ $json.search_term }}\", Location: \"{{ $json.location_to_search }}\", Language for response: \"{{ $json.sprache }}\", Profile ID: \"{{ $json.profile_id }}\""
+            }
+          ]
+        },
+        "options": {},
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.perplexity",
+      "typeVersion": 1,
+      "position": [
+        1344,
+        -96
+      ],
+      "id": "97888756-b1e4-4852-92ac-a4081413b0c2",
+      "name": "Message a model",
+      "credentials": {
+        "perplexityApi": {
+          "id": "xSv91w82C6Gnq9rX",
+          "name": "Perplexity account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Получаем ЧИСТЫЙ JSON-объект от 'Weiter_suche'\nconst input_wrapper = items[0].json;\n\n// 2. \"Заходим\" внутрь ключа \"output\", чтобы достать наш JSON\nconst agent4_input = input_wrapper.output;\n\n// 3. \"Дотягиваемся\" до ноды 'Get many rows', чтобы взять 'profile_id'\n//    Убедитесь, что имя ноды 'Get many rows' - правильное!\nconst profile_data = $('Get many rows').item.json;\nconst profile_id = profile_data.id; // 📍 (e.g., 1)\n\n// 4. Получаем наши данные\nconst terms = agent4_input.search_terms;\nconst location = agent4_input.location_to_search; // 📍 \"Saarbrücken\"\nconst sprache = agent4_input.sprache;\n\n// 5. Проверяем, что 'terms' - это действительно массив\nif (!Array.isArray(terms)) {\n  return [{ json: { error: \"'search_terms' is not an array.\" } }];\n}\n\nconst outputItems = [];\n\n// 6. === 🚀 ГЛАВНОЕ ИСПРАВЛЕНИЕ 🚀 ===\n//    Мы УБИРАЕМ 'prefixes = [\"Weiterbildung\", \"Umschulung\"]'\n//    Мы просто \"распаковываем\" УЖЕ ГОТОВЫЙ список от Агента 4\nfor (const term of terms) {\n  outputItems.push({\n    json: {\n      profile_id: profile_id, // 📍 \"Приклеили\" ID\n      search_term: term, // 📍 \"Weiterbildung Produktionssteuerung\" (уже готово)\n      location_to_search: location, \n      sprache: sprache \n    }\n  });\n}\n\n// 7. Возвращаем 14 элементов (а не 28)\nreturn outputItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        -96
+      ],
+      "id": "d740f58f-6375-446e-956d-645c4a0b2015",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"search_terms\": [\"Keyword1\", \"Keyword2\"],\n  \"location_to_search\": \"City\",\n  \"sprache\": \"RU\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1040,
+        -192
+      ],
+      "id": "085b6d04-6a84-43d6-95da-280c95aaa3a5",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Получаем ВСЕ 44 \"чистых\" элемента, которые ТОЛЬКО ЧТО\n//    прошли через ноду Supabase 'Create a row'\nconst items = $input.all();\n\n// 2. Инициализируем переменные\nlet context = \"\"; // Здесь будем хранить весь текст\nlet sprache = \"\"; // Здесь сохраним язык\nconst uniqueUrls = new Set(); // 👈 Для удаления дубликатов\n\n// 3. Перебираем все 44 курса\nfor (const item of items) {\n  const kurs = item.json;\n  \n  // 4. \"Пробрасываем\" язык (он будет одинаковый для всех)\n  if (!sprache && kurs.sprache) {\n    sprache = kurs.sprache; \n  }\n\n  // 5. 🚀 Фильтр-вышибала (как вы и хотели)\n  const titleLower = kurs.title.toLowerCase();\n  if (titleLower.includes('ausbildung')) {\n     continue; // Пропускаем \"Ausbildung\"\n  }\n\n  // 6. 🚀 Фильтр дубликатов (по URL)\n  // Мы видели дубликаты в 'output', этот фильтр их \"убьет\"\n  if (kurs.url && !uniqueUrls.has(kurs.url)) {\n    uniqueUrls.add(kurs.url);\n    \n    // 7. \"Собираем\" все \"чистые\" курсы в один БОЛЬШОЙ текстовый блок\n    context += \"Titel: \" + kurs.title + \"\\n\";\n    context += \"Anbieter: \" + kurs.provider + \"\\n\";\n    context += \"Ort: \" + kurs.location + \"\\n\";\n    context += \"URL: \" + kurs.url + \"\\n\";\n    context += \"---\\n\"; // Разделитель\n  }\n}\n\n// 8. === 🚀 ГЛАВНОЕ ИСПРАВЛЕНИЕ ЗДЕСЬ 🚀 ===\n//    Мы возвращаем ОБА поля: 'full_context' И 'sprache'\n//    (Это то, что \"сломалось\" в прошлый раз)\nreturn [{\n  json: {\n    full_context: context, // Один БОЛЬШОЙ текст со всеми \"чистыми\" курсами\n    sprache: sprache // 📍 Язык пользователя (e.g., \"RU\")\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1808,
+        -96
+      ],
+      "id": "59c03c43-2a9a-4948-957b-e900ae629772",
+      "name": "Aggregator v2"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Aggregator v2').item.json.full_context }}  {{ $json.sprache }}  {{ $('Get many rows').first().json.zusammenfassung_ai }}  {{ $('Get many rows').first().json.potenzialanalyse_ai }}  {{ $('Get many rows').first().json.empfehlung_ai }}",
+        "options": {
+          "systemMessage": "=**Agent Role:**\nYou are \"Kaliberator\", an empathetic Career Coach and Translator.\nYour goal is to present educational opportunities to a candidate in a warm, motivating, and non-robotic way.\n\n**Primary Goal:**\nTranslate the German data into the user's language (`sprache`) and wrap it in a human-like, encouraging message.\n\n---\n**CRITICAL LANGUAGE RULE:**\n1.  **Input:** The `profile` and `top_courses` are in GERMAN.\n2.  **Target:** The `sprache` field (e.g., \"RU\", \"TR\", \"UK\", \"DE\") defines the output language.\n3.  **Action:** You MUST translate all *explanations* (`intro_message`, `why_fits`) into the target language.\n4.  **Constraint:** Do NOT translate official names (`title`, `provider`, `location`, `match`). Keep them in German.\n\n---\n**TONE & STYLE (NO ROBOTS ALLOWED):**\n* **Vibe:** Helpful, Optimistic, Personal.\n* **Bad:** \"Based on the analysis of your profile ID 22, here is the list.\" (Too robotic).\n* **Good:** \"I found some great courses that match your passion for [Hobby]! 🌱\"\n* **Good:** \"Since you want to upgrade your skills in [Skill], these courses are perfect for you.\"\n\n---\n**INPUT DATA STRUCTURE:**\n{\n  \"profile\": { \"zusammenfassung_ai\": \"...\", \"empfehlung_ai\": \"...\" },\n  \"top_courses\": [ { \"title\": \"...\", \"provider\": \"...\", \"score\": \"...\" } ],\n  \"sprache\": \"RU\"\n}\n---\n\n**OUTPUT JSON SCHEMA:**\n{\n  \"intro_message\": \"A warm greeting in [sprache]. Summarize the user's goal (from `empfehlung_ai` or `zusammenfassung_ai`) in simple words. Say how many good options you found.\",\n  \"courses\": [\n    {\n      \"title\": \"Original German Title (Copy as-is)\",\n      \"provider\": \"Original Provider (Copy as-is)\",\n      \"location\": \"Original Location (Copy as-is)\",\n      \"url\": \"Original URL (Copy as-is)\",\n      \"why_fits\": \"A short, motivating sentence in [sprache]. Explain WHY this specific course helps THEM. (e.g., 'This certificate is highly respected' or 'Perfect for beginners').\",\n      \"match\": \"Keywords matched (Copy as-is)\",\n      \"score\": \"Score (Copy as-is)\"\n    }\n  ]\n}\n\n**Example (Target: RU, User: Gardener):**\n{\n  \"intro_message\": \"Отличные новости! Я изучил вашу ситуацию: так как вы любите работать с растениями, я нашел несколько курсов, которые помогут превратить это хобби в профессию:\",\n  \"courses\": [\n    {\n      \"title\": \"Grundlagen Gartenbau\",\n      \"provider\": \"Landwirtschaftskammer\",\n      \"location\": \"Saarbrücken\",\n      \"url\": \"https://...\",\n      \"why_fits\": \"Этот курс даст вам необходимую базу, чтобы начать работать помощником садовника.\",\n      \"match\": \"gartenbau\",\n      \"score\": \"100\"\n    }\n  ]\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2096,
+        -96
+      ],
+      "id": "91719092-a759-40f2-a2c2-f7c4eac78dc8",
+      "name": "Summarizer"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').first().json.callback_query.from.id }}",
+        "text": "={{ $json.final_telegram_message }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2544,
+        -96
+      ],
+      "id": "39e5497e-c892-45cf-83df-b7867f6b3ee9",
+      "name": "Send a text message",
+      "webhookId": "5377ddf5-45d2-4043-928d-0600bab75d84",
+      "credentials": {
+        "telegramApi": {
+          "id": "NBJbDO0OO8Aoebqo",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        2112,
+        -160
+      ],
+      "id": "924ed79d-e044-46ee-846c-6e804147ef2a",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "gQD2UdswSHBaaiil",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// [НАЧАЛО КОДА 'Scoring Engine' v4.0 (LIMIT FIX)]\n\n// 1. Получаем данные\nconst inputData = $input.item.json;\nconst full_context = inputData.full_context;\nconst sprache = inputData.sprache;\nconst profile = $('Get many rows').first().json;\n\n// === 2. ДИНАМИЧЕСКИЕ КЛЮЧЕВЫЕ СЛОВА ===\nlet userKeywords = [];\n\nif (Array.isArray(profile.hard_skills_ai)) {\n    profile.hard_skills_ai.forEach(skill => {\n        userKeywords.push({ term: skill.toLowerCase(), weight: 3 });\n        if (skill.length > 8) {\n            userKeywords.push({ term: skill.substring(0, 5).toLowerCase(), weight: 1 }); \n        }\n    });\n}\n\nif (profile.empfehlung_ai) {\n    const words = profile.empfehlung_ai.split(/[\\s,.]+/);\n    words.forEach(w => {\n        if (w.length > 5) userKeywords.push({ term: w.toLowerCase(), weight: 2 });\n    });\n}\n\n// === 3. ФИЛЬТР ШУМА ===\nconst genericPenalties = {\n  'weiterbildung': -0.5,\n  'kurs': -0.5,\n  'online': 0.5,\n  'fernlehrgang': 0.5\n};\n\n// === 4. ПАРСИНГ ===\nfunction parseFullContext(context) {\n  const courses = [];\n  if (!context) return [];\n  const entries = context.split('---');\n  const uniqueUrls = new Set();\n\n  for (const entry of entries) {\n    if (entry.trim() === \"\") continue;\n    const course = {};\n    const lines = entry.trim().split('\\n');\n    for (const line of lines) {\n      if (line.startsWith('Titel: ')) course.title = line.substring(7).trim();\n      else if (line.startsWith('Anbieter: ')) course.provider = line.substring(10).trim();\n      else if (line.startsWith('Ort: ')) course.location = line.substring(5).trim();\n      else if (line.startsWith('URL: ')) course.url = line.substring(5).trim();\n    }\n    \n    if (!course.title) continue;\n\n    if (course.url && !uniqueUrls.has(course.url)) {\n      uniqueUrls.add(course.url);\n      courses.push(course);\n    }\n  }\n  return courses;\n}\n\nconst allCourses = parseFullContext(full_context);\n\n// === 5. СКОРИНГ ===\n// 🔥 ВАЖНО: Ставим жесткий лимит 6 штук, чтобы Telegram не ругался\nconst top_n = 6; \nconst scoredCourses = [];\nconst authorityProviders = ['IHK', 'HWK', 'TÜV', 'DEKRA', 'WBS', 'BFW', 'Meister'];\n\nfor (const course of allCourses) {\n  let score = 0;\n  let matched_terms = [];\n  let isBlocked = false;\n  const titleLower = course.title.toLowerCase();\n\n  // Блокеры\n  if (profile.blocker_ai && Array.isArray(profile.blocker_ai)) {\n      if (JSON.stringify(profile.blocker_ai).includes('Körperliche')) {\n          if (titleLower.includes('lager') || titleLower.includes('bau')) {\n              score -= 5; \n          }\n      }\n  }\n\n  // Матчинг слов\n  userKeywords.forEach(k => {\n      if (titleLower.includes(k.term)) {\n          score += k.weight;\n          matched_terms.push(k.term);\n      }\n  });\n\n  // Авторитет\n  if (course.provider && authorityProviders.some(p => course.provider.toUpperCase().includes(p))) {\n    score += 1.5; \n  }\n\n  if (score > 0) {\n    scoredCourses.push({\n      title: course.title,\n      provider: course.provider,\n      location: course.location,\n      url: course.url,\n      score: score,\n      match: [...new Set(matched_terms)].join(', ')\n    });\n  }\n}\n\n// 7. СОРТИРОВКА И ОБРЕЗКА\nscoredCourses.sort((a, b) => b.score - a.score);\n\n// 🔥 БЕРЕМ ТОЛЬКО ТОП-6\nconst topCourses = scoredCourses.slice(0, top_n);\n\n// Нормализация\nconst maxScore = topCourses.length > 0 ? topCourses[0].score : 1;\nfor (const course of topCourses) {\n  course.score_percent = Math.round((course.score / maxScore) * 100);\n}\n\nreturn [{\n  json: {\n    profile: profile,\n    top_courses: topCourses,\n    sprache: sprache\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        -96
+      ],
+      "id": "2dd80e7f-d117-4928-92c1-cd188525ecd0",
+      "name": "Scoring Engine"
+    },
+    {
+      "parameters": {
+        "jsCode": "// [НАЧАЛО КОДА 'Formatter']\n\n// 1. Получаем JSON от 'Summarizer'.\n// Его ответ — это JSON-строка внутри поля 'output', поэтому ее нужно распарсить.\nconst agentOutputString = $input.item.json.output;\nconst agentJson = JSON.parse(agentOutputString);\n\n// 2. 🚀 ГЛАВНАЯ ФУНКЦИЯ: Экранирование для MarkdownV2\n// Это гарантирует, что Telegram не выдаст ошибку 'Can't parse entities'\nfunction escapeMarkdownV2(text) {\n  if (text === null || typeof text === 'undefined') {\n    return '';\n  }\n  // Это экранирует ВСЕ специальные символы, которые Telegram не любит\n  return text.toString().replace(/[_\\[\\]()~`>#\\+\\-=|{}\\.!\\\\]/g, '\\\\$&');\n}\n\nlet message = \"\";\n\n// 3. Собираем сообщение, используя БЕЗОПАСНЫЙ MarkdownV2\n// Мы используем *...* для жирного шрифта (MarkdownV2)\nmessage += escapeMarkdownV2(agentJson.intro_message) + \"\\n\\n\";\n\nfor (const course of agentJson.courses) {\n  message += `*Titel:* ${escapeMarkdownV2(course.title)}\\n`;\n  message += `*Anbieter:* ${escapeMarkdownV2(course.provider)}\\n`;\n  message += `*Ort:* ${escapeMarkdownV2(course.location)}\\n`;\n  \n  // ❗️ URL обрабатываем особо: мы экранируем только скобки в URL\n  const safeUrl = course.url.replace(/[()]/g, '\\\\$&');\n  message += `*URL:* [Link](${safeUrl})\\n`; \n  \n  message += `*Warum passt es:* ${escapeMarkdownV2(course.why_fits)}\\n`;\n  message += `*Match:* ${escapeMarkdownV2(course.match)} / blocker_ok\\n`;\n  message += `*Score:* ${escapeMarkdownV2(course.score)}\\n\\n`; // Доп. отступ\n}\n\n// 4. Возвращаем одну переменную с готовым текстом\nreturn [{\n  json: {\n    final_telegram_message: message\n  }\n}];\n\n// [КОНЕЦ КОДА 'Formatter']"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2384,
+        -96
+      ],
+      "id": "c16dc8ee-0d5e-4644-b692-ad45b4cbe014",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "profile",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "external_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.external_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        752,
+        80
+      ],
+      "id": "d9e5678b-b6c1-4426-b164-c212e9595978",
+      "name": "Get many rows1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "KbNOAJv6YjMDi3FY",
+          "name": "Supabase account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        912,
+        224
+      ],
+      "id": "cbbf8c8a-a2a1-4e8a-bd85-802e1ce69129",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "gQD2UdswSHBaaiil",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json }}",
+        "options": {
+          "systemMessage": "=# ROLE\nYou are an Expert AI Career Strategist suitable for ANY candidate profile. Your goal is to generate high-precision SEO SEARCH KEYWORDS for job platforms (StepStone, Indeed, LinkedIn).\n\n# INPUT DATA\n**Client's Skills (Kompetenzen):**\n{{ $json.hard_skills_ai }}\n\n**Client's Limitations (Blocker):**\n{{ $json.blocker_ai }}\n\n**Client's Potential (Potenzialanalyse):**\n{{ $json.potenzialanalyse_ai }}\n\n**Client's Recommendation (Empfehlung):**\n{{ $json.empfehlung_ai }}\n\n**Client's Experience in Germany (Erfahrung DE):**\n{{ $json.erfahrung_in_deutschland }}\n\n# ANALYSIS PROTOCOL\n1.  **THE CONSTRAINT FILTER:** Check `blocker_ai` & `status`. Exclude roles that violate physical or psychological constraints (e.g., negative experience in German retail -> BAN \"Verkäufer\").\n\n2.  **THE GERMAN BOOSTER (Crucial):**\n    * Look at `Erfahrung DE` and `hard_skills_ai`.\n    * If the candidate mentions a **German Certificate** (e.g., \"Staplerschein\", \"Pflegebasiskurs\", \"Alltagsbegleiter\") or **German Work Experience** (Minijob, Praxis), you MUST use these exact titles in \"Strategy B\" or \"Strategy C\". German experience trumps foreign experience.\n\n3.  **STRATEGY A: \"THE SPECIALIST\" (High Value):** Rare skills (e.g., n8n, Specific Machinery, specialized software). Target: Highest potential salary / Remote potential.\n\n4.  **STRATEGY C: \"QUICK ENTRY / SURVIVAL\" (Local & Fast):**\n    * **Trigger:** Always generate this list if strategy is \"Schnellstmöglich\".\n    * **Logic:** Look for low-barrier roles based on *past* experience (e.g., Sales, Logistics, Cleaning) OR generic entry roles.\n    * **CRITICAL:** Do NOT fill this list only with \"Junior\" versions of the dream job. You MUST include a \"Safety Net\" (Manual/Service work) if the candidate needs money now.\n    * **BAN:** Do NOT use the term \"Werkstudent\" unless the profile explicitly says \"Student\".\n    * *Example for Designer:* \"Regalauffüller\" (Stocking), \"Verkaufshilfe\" (Sales Helper), \"Datenerfasser\".\n\n5.  **STRATEGY C: \"QUICK ENTRY\" (Local Survival):** Low-barrier jobs available immediately. Prioritize roles where the candidate already has a German entry (e.g., Helper, Driver, Cleaner).\n\n# KEYWORD RULES (CRITICAL for Success)\n* **KEEP IT SHORT:** Max 2-4 words per query.\n* **NO EXPLANATIONS:** Do NOT include text like \"(without phone)\", \"(part-time)\". Search engines will return 0 results.\n* **STANDARD TITLES ONLY:** Use the exact titles recruiters use (e.g., \"Sachbearbeiter\", \"Lagerhelfer\").\n\n# TASK\nGenerate a JSON object with 3 lists of clean search terms.\n\n# OUTPUT FORMAT\nReturn ONLY JSON.\n\n{\n  \"analysis_summary\": \"Brief logic explanation.\",\n  \"search_strategies\": {\n    \"niche_specialist\": [\"Keyword 1\", \"Keyword 2\", \"Keyword 3\"], \n    \"transferable_standard\": [\"Keyword 1\", \"Keyword 2\", \"Keyword 3\"],\n    \"quick_entry_local\": [\"Keyword 1\", \"Keyword 2\", \"Keyword 3\"]\n  }\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        912,
+        80
+      ],
+      "id": "88b1bbca-f5b9-4212-ad07-b4095248d083",
+      "name": "Arbeit-suche"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n  \"search_terms\": [\"Keyword1\", \"Keyword2\"],\n  \"location_to_search\": \"City\",\n  \"sprache\": \"RU\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1056,
+        240
+      ],
+      "id": "7ae74cb4-e04c-4680-b9eb-1cfc890f32c7",
+      "name": "Code Tool"
+    },
+    {
+      "parameters": {
+        "jsCode": "// [НАЧАЛО КОДА V7 - Универсальная География]\n\n// 1. Получаем данные\nconst agentOutputString = $input.item.json.output;\nconst profileData = $('Get many rows1').first().json;\nconst sprache = profileData.sprache || \"DE\";\n\n// 2. Настройка Локаций\nconst baseCity = profileData.standort || \"Spiesen-Elversberg\";\n\n// Локация \"Под домом\" (для простых работ) - 20 км\nconst locNear = baseCity + \" Umkreis 20km\"; \n\n// Локация \"Регион/Коммьют\" (для специалистов) - 50 км\n// Профи готовы ездить чуть дальше ради карьеры\nconst locRegion = baseCity + \" Umkreis 50km\"; \n\n// 3. Парсинг\nlet aiData;\ntry {\n    const cleanJson = agentOutputString.replace(/```json/g, \"\").replace(/```/g, \"\").trim();\n    aiData = JSON.parse(cleanJson);\n} catch (error) {\n    throw new Error(\"JSON Parse Error: \" + error.message);\n}\n\nlet finalSearchItems = [];\n\n// Функция-помощник\nfunction addQuery(term, loc, type) {\n    finalSearchItems.push({\n        search_term: term,\n        location: loc,\n        language: sprache,\n        strategy_type: type\n    });\n}\n\nif (aiData.search_strategies) {\n    \n    // === 1. STRATEGY: SPECIALIST (Ниша/Профи) ===\n    // Тут применяем ГИБРИДНУЮ логику\n    if (aiData.search_strategies.niche_specialist) {\n        aiData.search_strategies.niche_specialist.forEach(term => {\n            \n            // Вариант А: Ищем профи в РЕГИОНЕ (50км)\n            // Подойдет для Садовника (найдет работу в соседнем городе)\n            // Подойдет для Ларисы (найдет работу в Саарбрюккене)\n            addQuery(term, locRegion, \"strategy_specialist\");\n\n            // Вариант Б: Ищем по всей ГЕРМАНИИ, но СТРОГО с припиской \"Remote\"\n            // Подойдет для Ларисы (найдет n8n в Берлине на удаленке)\n            // Для Садовника найдет 0 (и это хорошо, не будем спамить)\n            addQuery(term + \" Remote\", \"Deutschland\", \"strategy_specialist\");\n        });\n    }\n\n    // === 2. STRATEGY: STANDARD (Офис/Смежное) ===\n    // Ищем рядом с домом (20км)\n    if (aiData.search_strategies.transferable_standard) {\n        aiData.search_strategies.transferable_standard.forEach(term => {\n            addQuery(term, locNear, \"strategy_standard\");\n        });\n    }\n\n    // === 3. STRATEGY: QUICK (Быстрый старт) ===\n    // Ищем строго локально (20км)\n    if (aiData.search_strategies.quick_entry_local) {\n        aiData.search_strategies.quick_entry_local.forEach(term => {\n            addQuery(term, locNear, \"strategy_quick\");\n        });\n    }\n\n} \n// Fallback для старых версий\nelse if (aiData.job_titles) {\n    aiData.job_titles.forEach(term => {\n        addQuery(term, locNear, \"fallback\");\n    });\n}\n\nreturn finalSearchItems.map(item => ({ json: item }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        80
+      ],
+      "id": "98d7c2fe-bf3b-487c-b847-be31ffab9aaa",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "url": "=https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v4/jobs?was={{ encodeURIComponent($json.search_term) }}&wo={{ encodeURIComponent($json.location) }}&umkreis=30&size=10",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "jobboerse-jobsuche"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1328,
+        80
+      ],
+      "id": "2bba55e9-3c34-40f9-a9d4-9852b9ef5764",
+      "name": "Jobliste anfragen"
+    },
+    {
+      "parameters": {
+        "jsCode": "// [НАЧАЛО КОДА для \"Jobs aufteilen\"]\n\n// 1. Получаем все 10 (или сколько их там) результатов от \"Jobliste anfragen\"\n// Каждый элемент в этом массиве - это { json: { profile_id, search_term, stellenangebote: [...] } }\nconst allHttpResults = $items();\n\n// 2. Используем .flatMap()\n// Это элегантный способ \"схлопнуть\" массив массивов в один плоский массив.\nconst allJobsList = allHttpResults.flatMap(httpResult => {\n  \n  // 3. Извлекаем данные, которые пришли В ЭТУ ноду (из \"Code in JavaScript2\")\n  // Нам нужно \"прокинуть\" их дальше для каждой вакансии.\n  const profile_id = httpResult.json.profile_id;\n  const search_term_used = httpResult.json.search_term;\n  const sprache = httpResult.json.sprache; // Также захватим язык\n\n  // 4. Проверяем, есть ли в ответе массив 'stellenangebote'\n  if (httpResult.json.stellenangebote && Array.isArray(httpResult.json.stellenangebote)) {\n    \n    // 5. Да, есть. Используем .map() чтобы \"обогатить\" каждую вакансию\n    // flatMap автоматически \"развернет\" этот массив в общий список.\n    return httpResult.json.stellenangebote.map(job => {\n      \n      // 6. Добавляем наши 'прокинутые' данные к данным вакансии\n      const newJobData = {\n        ...job, // Копируем все данные вакансии (titel, refnr, arbeitgeber...)\n        \n        // ... и добавляем наши служебные поля\n        profile_id: profile_id,      // ID клиента из Supabase\n        search_term: search_term_used, // По какому запросу нашли\n        sprache: sprache               // Язык (на всякий случай)\n      };\n      \n      // 7. Возвращаем новый объект для n8n\n      return { json: newJobData };\n    });\n  }\n  \n  // 8. Если 'stellenangebote' нет (например, maxErgebnisse = 0),\n  // возвращаем пустой массив. flatMap его просто \"проигнорирует\".\n  return []; \n});\n\n// 9. Возвращаем один большой, плоский массив со всеми найденными вакансиями\nreturn allJobsList;\n\n// [КОНЕЦ КОДА]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        80
+      ],
+      "id": "e2e1f289-bfd1-4ce5-9491-e59a78f46738",
+      "name": "Jobs aufteilen"
+    },
+    {
+      "parameters": {
+        "jsCode": "// [НАЧАЛО КОДА для \"Detail-URL erstellen\" (v2 - Очищающий)]\n\n// 1. Получаем все \"грязные\" объекты из \"Jobs aufteilen\"\nconst allJobs = $input.all();\n\n// 2. Используем .map() чтобы трансформировать каждый \"грязный\" объект в \"чистый\"\nconst cleanJobs = allJobs.map(item => {\n  \n  // 3. Извлекаем сырые данные из входящего элемента\n  const data = item.json;\n  \n  // 4. Генерируем URL, как и раньше\n  const publicUrl = `https://www.arbeitsagentur.de/jobsuche/jobdetail/${data.refnr}`;\n  \n  // 5. Создаем НОВЫЙ, \"чистый\" объект ТОЛЬКО с нужными полями\n  const cleanJob = {\n    titel: data.titel,           // 1. Название\n    arbeitgeber: data.arbeitgeber, // 2. Работодатель\n    url: publicUrl,               // 3. Ссылка на вакансию\n    profile_id: data.profile_id,  // 4. ID клиента (из \"Jobs aufteilen\")\n    sprache: data.sprache         // 5. Язык клиента (из \"Jobs aufteilen\")\n  };\n  \n  // 6. Возвращаем его в формате n8n\n  return { json: cleanJob };\n});\n\n// 7. Возвращаем массив \"чистых\" объектов\nreturn cleanJobs;\n\n// [КОНЕЦ КОДА]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        80
+      ],
+      "id": "17af0449-1c6b-4450-a618-c9e7473b795d",
+      "name": "Detail-URL erstellen"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json[\"url\"] }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "jobboerse-jobsuche"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1776,
+        80
+      ],
+      "id": "ad801584-149e-42e0-8d59-5a2d4ba8cc8e",
+      "name": "Jobdetails anfragen"
+    },
+    {
+      "parameters": {
+        "jsCode": "// [НАЧАЛО КОДА: Merger + Чистка + Поиск Города v2]\n\nconst htmlItems = $input.all();\n// Убедись, что имя ноды ниже правильное\nconst sourceItems = $('Detail-URL erstellen').all();\n\nconst finalItems = [];\n\nfor (let i = 0; i < htmlItems.length; i++) {\n  \n  const html = htmlItems[i].json.data;\n  const sourceData = sourceItems[i].json;\n\n  // 1. ОЧИСТКА HTML\n  if (typeof html !== 'string') continue;\n  \n  // Убираем скрипты, стили и теги\n  const cleanText = html.replace(/<(script|style)[\\s\\S]*?>[\\s\\S]*?<\\/(script|style)>/gi, '')\n                        .replace(/<[^>]+>/g, ' ')\n                        .replace(/(\\s|&nbsp;)+/g, ' ')\n                        .trim();\n\n  // 2. ФИЛЬТР ПУСТЫШЕК\n  if (cleanText.includes(\"Vollständige Stellenbeschreibung bei unserem Kooperationspartner einsehen\")) {\n    continue;\n  }\n\n  // 3. 🌍 ГЕОЛОКАТОР (Поиск города)\n  // Сначала пробуем взять из источника, если там было\n  let detectedLocation = sourceData.standort || sourceData.ort || sourceData.location || null;\n\n  // Если в источнике пусто, ищем в ТЕКСТЕ по Индексу (PLZ)\n  if (!detectedLocation) {\n    // Регулярка ищет: 5 цифр + пробел + Слово (Например: 66583 Spiesen)\n    const plzMatch = cleanText.match(/\\b\\d{5}\\s+[A-ZÄÖÜ][a-zäöüß\\.-]+/);\n    \n    if (plzMatch) {\n      detectedLocation = plzMatch[0]; // Берем найденное (напр. \"20095 Hamburg\")\n    } else {\n       // Запасной вариант: ищем слово \"Arbeitsort:\" и берем текст после него\n       const ortMatch = cleanText.match(/Arbeitsort[:\\s]+([A-ZÄÖÜ][a-zäöüß]+)/i);\n       if (ortMatch) {\n         detectedLocation = ortMatch[1];\n       }\n    }\n  }\n\n  // Если совсем ничего не нашли, ставим дефолт, чтобы не ломать базу\n  if (!detectedLocation) detectedLocation = \"Deutschland (Ort unbekannt)\";\n\n  // 4. СБОРКА\n  const finalOutput = {\n    titel: sourceData.titel,\n    arbeitgeber: sourceData.arbeitgeber,\n    url: sourceData.url,\n    strategy_type: sourceData.strategy_type || \"unknown\", \n    \n    // 🔥 НОВОЕ ПОЛЕ: Найденный город\n    standort: detectedLocation,\n    \n    clean_text: cleanText \n  };\n\n  finalItems.push({ json: finalOutput });\n}\n\nreturn finalItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        80
+      ],
+      "id": "0f9a761c-9b45-4bc4-863a-908d8a33be63",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.clean_text }}",
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"stellentitel\": {\n      \"type\": \"string\",\n      \"description\": \"Der vollständige Titel der Stellenanzeige, wie er im Text steht.\"\n    },\n    \"unternehmen\": {\n      \"type\": \"string\",\n      \"description\": \"Der Name des einstellenden Unternehmens.\"\n    },\n    \"standort\": {\n      \"type\": \"string\",\n      \"description\": \"Der Arbeitsort (Stadt oder Region).\"\n    },\n    \"aufgaben\": {\n      \"type\": \"string\",\n      \"description\": \"Fasse die Hauptaufgaben und Verantwortlichkeiten der Stelle zusammen. Gib nur den reinen Text der Aufgaben zurück, ohne 'Ihre Aufgaben:'.\"\n    },\n    \"anforderungen\": {\n      \"type\": \"string\",\n      \"description\": \"Liste die wichtigsten Qualifikationen, geforderten Ausbildungen und notwendigen Fähigkeiten auf. Gib nur den reinen Text der Anforderungen zurück, ohne 'Ihr Profil:'.\"\n    },\n    \"angebote\": {\n      \"type\": \"string\",\n      \"description\": \"Liste die Vorteile auf, die das Unternehmen anbietet (z.B. Homeoffice, Weiterbildung). Gib nur den reinen Text der Angebote zurück, ohne 'Wir bieten:'.\"\n    },\n    \"anstellungsart\": {\n      \"type\": \"string\",\n      \"description\": \"Analysiere den gesamten Text und klassifiziere die Anstellungsart. Wähle NUR EINEN der folgenden vier Werte.\",\n      \"enum\": [\n        \"Vollzeit\",\n        \"Teilzeit\",\n        \"Minijob\",\n        \"Sonstiges\"\n      ]\n    }\n  },\n  \"required\": [\n    \"anstellungsart\"\n  ]\n}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        2256,
+        80
+      ],
+      "id": "b4e78851-61e7-4961-a1eb-c08cd1a00900",
+      "name": "Information Extractor"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        2320,
+        208
+      ],
+      "id": "5a2de915-db9b-4acc-b2a5-37eb550e0633",
+      "name": "OpenAI Chat Model2",
+      "credentials": {
+        "openAiApi": {
+          "id": "gQD2UdswSHBaaiil",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// [НАЧАЛО КОДА: Финальная сборка v12 - Прямой импорт из Remove Duplicates]\n\n// 1. Получаем профиль клиента (стандартно)\nconst clientProfile = $('Get many rows1').first().json;\nconst profileId = clientProfile.id;\nconst sprache = clientProfile.sprache;\n\n// 2. Получаем результаты от AI (текущий вход)\nconst aiResults = $input.all();\n\n// 3. ЯВНО берем данные из ноды \"Remove Duplicates\"\n// Важно: Имя ноды в скобках должно быть ТОЧНО как у тебя на схеме\nconst sourceItems = $('Remove Duplicates').all(); \n\nconst databaseReadyItems = [];\nconst seenUrls = new Set();\n\n// 4. Перебираем результаты\nfor (let i = 0; i < aiResults.length; i++) {\n  \n  // Данные от AI\n  const extracted = aiResults[i].json.output;\n  \n  // Данные от Источника (берем по тому же номеру i)\n  // Если в AI попало 30 штук и вышло 30 штук, индексы совпадут.\n  const source = sourceItems[i] ? sourceItems[i].json : {}; \n\n  const currentUrl = source.url;\n\n  // Защита: Если вдруг URL пустой (или рассинхрон), пропускаем\n  if (!currentUrl) {\n     continue;\n  }\n  \n  // Проверка на дубли внутри этого списка (на всякий случай)\n  if (seenUrls.has(currentUrl)) {\n    continue; \n  }\n  seenUrls.add(currentUrl);\n\n  // 5. Собираем объект\n  const newVacancy = {\n    profile_id: profileId,\n    sprache: sprache,\n    status: \"neu\",\n    \n    // Восстановленные данные из Remove Duplicates\n    url: currentUrl,\n    strategy_type: source.strategy_type || \"unknown\", \n\n    // Данные из AI\n    titel: extracted.stellentitel || \"Titel nicht gefunden\",\n    arbeitgeber: extracted.unternehmen || null,\n    standort: extracted.standort || null,\n    aufgaben: extracted.aufgaben || null,\n    anforderungen: extracted.anforderungen || null,\n    angebote: extracted.angebote || null,\n    anstellungsart: extracted.anstellungsart || null\n  };\n  \n  databaseReadyItems.push({ json: newVacancy });\n}\n\nreturn databaseReadyItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2544,
+        80
+      ],
+      "id": "2ebbc09b-d0af-4be5-b3b5-143b81f6e748",
+      "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "tableId": "vacancies",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "profile_id",
+              "fieldValue": "={{ $json.profile_id }}"
+            },
+            {
+              "fieldId": "sprache",
+              "fieldValue": "={{ $json.sprache }}"
+            },
+            {
+              "fieldId": "url",
+              "fieldValue": "={{ $json.url }}"
+            },
+            {
+              "fieldId": "titel",
+              "fieldValue": "={{ $json.titel }}"
+            },
+            {
+              "fieldId": "arbeitgeber",
+              "fieldValue": "={{ $json.arbeitgeber }}"
+            },
+            {
+              "fieldId": "standort",
+              "fieldValue": "={{ $json.standort }}"
+            },
+            {
+              "fieldId": "aufgaben",
+              "fieldValue": "={{ $json.aufgaben }}"
+            },
+            {
+              "fieldId": "anforderungen",
+              "fieldValue": "={{ $json.anforderungen }}"
+            },
+            {
+              "fieldId": "angebote",
+              "fieldValue": "={{ $json.angebote }}"
+            },
+            {
+              "fieldId": "anstellungsart",
+              "fieldValue": "={{ $json.anstellungsart }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2720,
+        80
+      ],
+      "id": "6cccdc91-ca96-4581-810f-97ef9d294e60",
+      "name": "Create a row1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "KbNOAJv6YjMDi3FY",
+          "name": "Supabase account 3"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0644337e-aff0-436a-a264-1c9d2ccdd883",
+              "name": "input_for_filter",
+              "value": "=CLIENT PROFILE:\nSUMMARY: {{ $('Get many rows1').first().json.zusammenfassung_ai }}\nBLOCKERS: {{ $('Get many rows1').first().json.blocker_ai }}\nSTRATEGY: {{ $('Get many rows1').first().json.suchstrategie }}\nENGLISH_LEVEL: {{ $('Get many rows1').first().json.englischniveau || \"Kein Englisch\" }}\nGERMAN_EXPERIENCE: {{ $('Get many rows1').first().json.erfahrung_in_deutschland || \"Keine\" }}\nCLIENT_CITY: {{ $('Get many rows1').first().json.standort }}\n\nJOB DETAILS:\nTITLE: {{ $json.titel }}\nLOCATION: {{ $json.standort }}\nTASKS: {{ $json.aufgaben }}\nREQUIREMENTS: {{ $json.anforderungen }}\nOFFER: {{ $json.angebote }}\nTYPE: {{ $json.anstellungsart }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2880,
+        80
+      ],
+      "id": "78ffa135-a136-4006-a1be-360acc3ed1bf",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-nano",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-nano"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1824,
+        448
+      ],
+      "id": "3fd71934-9616-47f2-93cb-bcfe3654751f",
+      "name": "OpenAI Chat Model3",
+      "credentials": {
+        "openAiApi": {
+          "id": "gQD2UdswSHBaaiil",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// [НАЧАЛО КОДА: Слияние Решения и Данных (Merger)]\n\n// 1. Получаем ответы от ИИ (30 штук)\nconst aiResults = $input.all();\n\n// 2. \"Дотягиваемся\" до оригинальных данных (URL, Title, ID)\n// Мы берем их из ноды \"Create a row1\", как на твоем скриншоте\nconst sourceItems = $('Create a row1').all();\n\nconst finalMatches = [];\n\n// 3. Перебираем результаты\nfor (let i = 0; i < aiResults.length; i++) {\n  \n  // --- А. Обработка ответа ИИ ---\n  const aiOutputString = aiResults[i].json.output;\n  let decision = \"Nein\"; // По умолчанию \"Нет\", если что-то пойдет не так\n\n  try {\n    // Чистим строку от лишнего (на случай если ИИ добавил markdown)\n    const cleanJson = aiOutputString.replace(/```json/g, \"\").replace(/```/g, \"\").trim();\n    const parsed = JSON.parse(cleanJson);\n    decision = parsed.entscheidung;\n  } catch (error) {\n    // Если ошибка парсинга, считаем это отказом\n    decision = \"Nein\";\n  }\n\n  // --- Б. Получение исходных данных ---\n  // Так как порядок (30 шт) сохранился, берем элемент с тем же номером i\n  const originalData = sourceItems[i] ? sourceItems[i].json : {};\n\n  // --- В. Фильтрация ---\n  // Если ИИ сказал \"Ja\" -> добавляем в финальный список\n  if (decision === \"Ja\") {\n    finalMatches.push({\n      json: {\n        ...originalData,   // Возвращаем id, url, titel, aufgaben...\n        ai_decision: \"Ja\"  // Добавляем метку для красоты\n      }\n    });\n  }\n}\n\n// 4. Возвращаем только одобренные вакансии\nreturn finalMatches;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2128,
+        304
+      ],
+      "id": "1010d3f9-3225-4954-9b2b-d7236d84d5de",
+      "name": "Code in JavaScript5"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Total Jobs Found: {{ $json.vacancies.length }}\n\nLIST:\n{{ JSON.stringify($json.vacancies) }}",
+        "options": {
+          "systemMessage": "=You are \"JobBot\", an empathetic, intelligent, and professional AI Career Assistant.\nYour goal is to communicate search results to a candidate via Telegram.\n\n**CRITICAL INPUTS:**\n1.  **Candidate Language:** {{ $('Get many rows1').first().json.sprache }}\n    * *RULE:* All your output MUST be in this language. (If \"RU\" -> Russian, \"DE\" -> German, \"TR\" -> Turkish, \"UA\" -> Ukrainian, etc.).\n2.  **Job Data:** The JSON list of vacancies provided in the user message.\n3.  **Count:** The value \"Total Jobs Found\" provided in the user message.\n\n**TASK:**\nAnalyze the Input JSON list and generate a Telegram message based on **Scenario A** or **Scenario B**.\n\n---\n\n### **SCENARIO A: VACANCIES FOUND (List is NOT empty)**\nIf the JSON contains job offers, celebrate this!\n\n**Structure:**\n1.  **Dynamic Greeting:**\n    * **CRITICAL:** use the exact number provided in the input line **\"Total Jobs Found\"** to say how many opportunities you found. Do NOT count them yourself.\n    * Be creative. Instead of robotic phrases, say something like: \"I analyzed your profile and found [Total Jobs Found] interesting options that match your skills and avoid your constraints.\"\n\n2.  **The Job List (Present ALL items from the input list):**\n    * Format for each job:\n        * **Title** (Bold) | **City**\n        * *Why:* A short, custom reason derived from the job title (e.g., \"Good for your creative side\" or \"Fits your manual skills\").\n        * [Link Text in Native Language](URL)\n\n3.  **Strategic Conclusion:**\n    * Briefly explain the logic of the mix. (e.g., \"I included both office roles and creative positions so you have a choice.\")\n\n4.  **Call to Action:**\n    * Ask which one they want to apply to first.\n\n---\n\n### **SCENARIO B: NO VACANCIES FOUND (List is empty)**\nIf the JSON is empty `[]` or null, you MUST show empathy.\n\n**Structure:**\n1.  **Honest & Empathetic Opening:**\n    * \"Unfortunately, I couldn't find any open positions matching *all* your strict criteria right now.\"\n2.  **Explanation:**\n    * Explain that sometimes the market is quiet, or the combination of Filters (Location + Blockers + Specific Job) was too narrow.\n3.  **Constructive Next Step:**\n    * Suggest a solution. (e.g., \"Shall we try expanding the search radius?\", \"Should we look for different role types?\", or \"Shall we try again tomorrow?\")."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2512,
+        304
+      ],
+      "id": "7f14fad4-aeca-4308-b0d9-c0d57768db7b",
+      "name": "Final Message Generator."
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.input_for_filter }}",
+        "options": {
+          "systemMessage": "=You are a supportive and optimistic Career Match Validator.\nYour goal is to filter jobs, but **WHEN IN DOUBT, SAY \"Ja\"**. Do not be too strict. Give the candidate a chance to decide.\n\n**INPUT DATA:**\n{{ $json.input_for_filter }}\n\n**ANALYSIS PROTOCOL (LOOSE & OPTIMISTIC LOGIC):**\n\n1.  **JOB TYPE CHECK (The \"Negotiation\" Logic):**\n    * **STEP 1:** Does Client need \"Teilzeit\" / \"Kinderbetreuung\"?\n    * **STEP 2:** Check Job Type.\n        * If Job is **\"Teilzeit\"**, **\"Minijob\"**, or **\"Flexibel\"** -> **\"Ja\"**.\n        * If Job is **\"Vollzeit\"**:\n            * **NEW RULE:** If the job is Office/Admin/IT/Marketing (Desk job) -> **\"Ja\"** (Assume it is negotiable to 30-35h).\n            * Only output **\"Nein\"** if the job is strict Shift Work (Schichtarbeit) in Production/Logistics AND the client specifically blocked \"Schicht/Night\".\n            * *Logic:* Never reject a good office job just because it says \"Vollzeit\". Moms can often negotiate hours.\n\n2.  **MOBILITY CHECK (Smart Radius):**\n    * Check `CLIENT_CITY` vs `JOB LOCATION`.\n    * **SAME REGION:** If distance is approx. **< 35 km** -> **\"Ja\"**.\n    * **REMOTE:** If text says \"Remote\", \"Homeoffice\" (100%) -> **\"Ja\"** (Anywhere is OK).\n    * **HYBRID CHECK ( The \"Realism\" Filter):**\n        * If text says \"Hybrid\" (Part home, part office):\n            * Is the distance **< 100 km**? -> **\"Ja\"** (Commute is possible).\n            * Is the distance **> 100 km**? -> **\"Nein\"** (Too far for regular commuting without a car, unless it's a high-level Manager role).\n    * **BAN:** Different State/Region (>100km) with no Remote option.\n\n3.  **COMMUNICATION CHECK (Phone Anxiety):**\n    * If Client has \"Phone fear\":\n    * **BAN:** Only jobs purely focused on *selling*: \"Call Center\", \"Cold Calling\", \"Telefonvertrieb\".\n    * **ALLOW:** \"Kundenservice\", \"Sachbearbeitung\", \"Assistenz\". Even if they mention \"Telefon\", usually it's just taking orders or internal calls. This is OK.\n\n4.  **QUALIFICATION (Skills Over Paper):**\n    * **GERMAN EXPERIENCE:** If `GERMAN_EXPERIENCE` matches job -> **\"Ja\"** (Highest Priority).\n    * **DIPLOMA:** If Client has \"No Diploma\":\n        * **BAN:** Only strict state-regulated roles: \"Arzt\", \"Apotheker\", \"Anwalt\", \"Lehrer\", \"Architekt\".\n        * **ALLOW:** EVERYTHING ELSE (Engineer title might be protected, but \"Technical Planner\" is not. Sales, Admin, IT, Marketing are open).\n        * **Rule:** If `Hard Skills` match `Tasks` -> **\"Ja\"**. Ignore \"Ausbildung\" requirements.\n\n5.  **LANGUAGE:**\n    * If Client has \"No German/English\":\n    * **ALLOW:** Any job where skills are visual/manual (Graphics, Stocking, Cleaning) or if \"Russian/Turkish\" is mentioned as a plus.\n    * **BAN:** Only \"Management\" or \"Head of\" roles requiring fluent negotiation.\n\n**FINAL OUTPUT:**\nReturn ONLY JSON.\n{\"entscheidung\": \"Ja\"} OR {\"entscheidung\": \"Nein\"}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1808,
+        304
+      ],
+      "id": "1fa0a355-5a72-4381-9487-ba66d2254599",
+      "name": "Classifier"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        2528,
+        464
+      ],
+      "id": "e07720d8-c737-4f5e-981b-5a0de84437b7",
+      "name": "OpenAI Chat Model4",
+      "credentials": {
+        "openAiApi": {
+          "id": "gQD2UdswSHBaaiil",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').first().json.callback_query ? $('Telegram Trigger').first().json.callback_query.from.id : $('Telegram Trigger').first().json.message.from.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2816,
+        304
+      ],
+      "id": "ca9e4171-65c2-4c87-9ecd-d3b86c30d599",
+      "name": "Send a text message1",
+      "webhookId": "f6697560-0bc2-4bc9-939e-a4889ace2f7b",
+      "credentials": {
+        "telegramApi": {
+          "id": "NBJbDO0OO8Aoebqo",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7c3df3fd-05df-47e6-8433-17b4628286fb",
+              "name": "query",
+              "value": "={{ $('Telegram Trigger').item.json.message.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        528,
+        -432
+      ],
+      "id": "f583defc-4789-4477-b805-92f6caa56c3e",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        752,
+        -304
+      ],
+      "id": "ac466e9b-000c-4a9f-bfd8-af145a7a74c0",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "f0nE3F7bRpEdiV4i",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+        "contextWindowLength": 50
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        832,
+        -304
+      ],
+      "id": "5f8a2985-b2a3-48c5-ac84-4a3d40dd2fbc",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output }}",
+                    "rightValue": "929",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notStartsWith"
+                    },
+                    "id": "6034c86f-d9ab-4635-8f22-7fa89322199e"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5d8b99a0-b439-495a-b11c-491876af2022",
+                    "leftValue": "={{ $json.output }}",
+                    "rightValue": "929",
+                    "operator": {
+                      "type": "string",
+                      "operation": "startsWith"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        1152,
+        -432
+      ],
+      "id": "59e315de-ca56-4996-adab-6d341e9fd78c",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1376,
+        -496
+      ],
+      "id": "584eb17e-b086-4ce8-bf98-0d2d5a4bd72c",
+      "name": "Send a text message2",
+      "webhookId": "e3695877-8737-4346-86c3-4031e8372db1",
+      "credentials": {
+        "telegramApi": {
+          "id": "NBJbDO0OO8Aoebqo",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// --- Adapted Code for Parsing Multi-line Reports ---\n// This code is language-agnostic. It parses a text report\n// that uses German labels (e.g., \"Name:\") and values\n// in German, Ukrainian, Russian, or Turkish.\n\n// 1. Get the input data\n// This path (item.json.output) must be the raw text output from Agent 1\nconst item = $items()[0];\nlet reportText = item.json.output;\n\n// 2. Check if the input text exists and is a string\nif (!reportText || typeof reportText !== 'string') {\n  return [{ json: { error: \"Input text from Agent 1 is empty or not a string.\" } }];\n}\n\n// 3. Clean the text (remove potential BOM or extra whitespace)\n// This ensures parsing stability\nreportText = reportText.replace(/\\uFEFF/g, '').trim();\n\nconst jsonData = {};\nconst lines = reportText.split('\\n');\n\nlet currentKey = null;\nlet currentValueLines = []; // Array to accumulate multi-line values\n\n// 4. Parse the text line by line\nfor (const line of lines) {\n  const trimmedLine = line.trim();\n  const colonIndex = line.indexOf(':');\n\n  // Check if this is a new key (label)\n  // \"colonIndex > 0\" means a colon exists and is not the first character\n  if (colonIndex > 0) {\n    // A. This is a new key.\n    // First, save the *previous* key-value pair if it exists\n    if (currentKey) {\n      jsonData[currentKey] = currentValueLines.join('\\n').trim();\n    }\n\n    // B. Now, start the new key-value pair\n    currentKey = line.substring(0, colonIndex).trim(); // This will be the German label\n    currentValueLines = [line.substring(colonIndex + 1).trim()]; // This is the start of the value\n\n  } else if (currentKey && trimmedLine.length > 0) {\n    // C. This is a continuation of the previous value (no colon found)\n    // Add this line to the current value\n    currentValueLines.push(trimmedLine);\n  }\n  // (If currentKey is not yet set or the line is empty, we ignore it)\n}\n\n// 5. Save the very last key-value pair\n// After the loop finishes, we must save the last accumulated value\nif (currentKey) {\n  jsonData[currentKey] = currentValueLines.join('\\n').trim();\n}\n\n// 6. Return the final JSON object\n// This JSON object will have German keys and multi-language values\nreturn [{\n  json: jsonData\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        -304
+      ],
+      "id": "923240b8-eb12-4cfd-b568-3582545aedac",
+      "name": "Code in JavaScript6"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ JSON.stringify($('Code in JavaScript6').item.json) }}",
+        "options": {
+          "systemMessage": "=**Agent Role:**\nYou are a highly qualified Career Consultant and Data Analyst for the German Jobcenter.\n\n**Primary Goal:**\nYour *only* goal is to analyze the JSON input (provided below) and return a **single, valid JSON object**. You MUST NOT add any other text, conversation, or markdown formatting (like ```json). You MUST strictly follow the rules and JSON structure provided at the very end of this prompt.\n\n---\n**INPUT DATA TO ANALYZE:**\n\nHere is the JSON object from the parser node. The keys are in German, and the verbatim values (like `Frühere Tätigkeit`) may be in DE, UA, RU, or TR. This is your only source of truth.\n\n{{ $json }}\n\n---\n**FINAL INSTRUCTIONS: RULES AND JSON FORMAT**\n\nYou must analyze the INPUT DATA provided above and generate a new JSON object.\nYou MUST follow these rules exactly.\n\n<INSTRUCTIONS_FOR_JSON_GENERATION>\n\n**Required JSON Output Structure (in German):**\n```json\n{\n  \"name\": \"Voller Name des Kandidaten (transliteriert)\",\n  \"email\": \"E-Mail-Adresse\",\n  \"sprache\": \"Die Sprache des Interviews (DE, UA, RU, TR)\",\n  \"standort\": \"Stadt und PLZ\",\n  \"zusammenfassung_ai\": \"Eine neutrale 2-3-Satz-Zusammenfassung der aktuellen Situation des Kandidaten.\",\n  \"blocker_ai\": [\n    \"Blocker 1 (auf Deutsch)\",\n    \"Blocker 2 (auf Deutsch)\"\n  ],\n  \"hard_skills_ai\": [\n    \"Hard Skill 1 (auf Deutsch)\",\n    \"Hard Skill 2 (auf Deutsch)\"\n  ],\n  \"soft_skills_ai\": [\n    \"Soft Skill 1 (auf Deutsch)\",\n    \"Soft Skill 2 (auf Deutsch)\"\n  ],\n  \"suchstrategie\": \"Bevorzugte Strategie: 'Schnellstmöglich' oder 'Qualifikation'\",\n  \"potenzialanalyse_ai\": \"Eine tiefgehende Analyse der wahren Motivation und des Potenzials, basierend auf den Antworten zu Hobbys, idealem Arbeitstag und Selbstlernen.\",\n  \"empfehlung_ai\": \"Eine spezifische Empfehlung: welche Art von Job oder Umschulung/Weiterbildung am besten zu dieser Person passt.\"\n}\nRules for Analysis and JSON Population (in German):\n\nsprache (Language):\nSimply copy the value from the Sitzungssprache field.\n\nstandort (Location):\nSimply copy the value from the Stadt und PLZ field.\n\nzusammenfassung_ai (Summary):\nBriefly describe who this person is, their experience, and what they are looking for. **ALL output must be in German.**\n\nblocker_ai (Blockers): [ARRAY OF STRINGS]\nDerive blockers only from the input data.\n\n**NEW CRITICAL RULE (DIPLOMA):** You MUST check 'Anerkennung des Abschlusses'. If the value is 'No' or 'In Progress', you MUST add a specific blocker: 'Ausländischer Fachabschluss: Anerkennung notwendig'.\n\n**NEW CRITICAL RULE (GERMAN EXPERIENCE CHECK):**\nAnalyze the field `Erfahrung in Deutschland` (if present).\n* **Negative Experience:** If the user says they tried a job in Germany (e.g., \"Retail/Verkauf at Aldi\") and explicitly didn't like it, add a Blocker: \"Vermeidung von [Industry] (Negative Erfahrung)\".\n\nNEW CRITICAL RULE (COMMUNICATION): You MUST check 'Deutsch (Telefon-Selbsteinschätzung)'. If this value is 3 or lower, add a blocker like \"Starke Einschränkung bei kommunikativen Aufgaben (Telefon-Selbstbewusstsein: 3/5)\".\n\nhard_skills_ai (Hard Skills): [ARRAY OF STRINGS]\nTranslate and extract professional skills.\n\n**CRITICAL RULE (GERMAN CERTIFICATES & EXPERIENCE):**\nAnalyze the field `Erfahrung in Deutschland`.\n* **Value:** These are high-value keywords. Translate German terms into Job Roles.\n    * *Example:* \"Course for elderly\" -> [\"Alltagsbegleiter\", \"Betreuungskraft\"].\n    * *Example:* \"Forklift\" -> [\"Gabelstaplerschein\"].\n\n**CRITICAL UPGRADE - THE \"HOBBY-TO-CAREER\" CONVERTER:**\nUse `Selbst gelernt` and `Hobbys`. Transform the \"Verb\" into a \"Noun\" (Profession).\n* *Example:* \"Video editing\" -> [\"Videomontage\", \"Content Creation\", \"Medienproduktion\"].\n* *Example:* \"Repair cars\" -> [\"KFZ-Instandhaltung\", \"Mechanik\"].\n* *Example:* \"Organize parties\" -> [\"Eventmanagement\", \"Organisation\"].\n* *Example:* \"Gardening/Tomatoes\" -> [\"Pflanzenpflege\", \"Gartenbau\", \"Landschaftspflege\"].\n\nsoft_skills_ai (Soft Skills): [ARRAY OF STRINGS]\nTranslate and extract personal qualities.\n**CRITICAL DATA HANDLING:**\n* **Source:** Focus ONLY on fields that contain real text (`Frühere Tätigkeit`, `Hobbys`, `Unerwartetes Problem`).\n* **IGNORE:** Fields containing \"Keine Angabe\" or \"Not Answered\". Do NOT interpret them as negative.\n* **Logic:**\n    * Sales experience -> \"Kommunikationsfähigkeit\".\n    * Manual hobby -> \"Handwerkliches Geschick\".\n    * Solved problem alone -> \"Eigeninitiative\".\n\nsuchstrategie (Search Strategy): [STRING]\nAnalyze `Priorität`.\nIf \"Quick Job/Money\" -> \"Schnellstmöglich\".\nIf \"Qualification/Match\" -> \"Qualifikation\".\n\npotenzialanalyse_ai (Potential Analysis): [STRING]\n**CRITICAL UPGRADE - THE \"DEPTH & MOTIVATION\" DETECTOR:**\nAnalyze the LENGTH and DEPTH of the **provided** answers only.\n\n1.  **Handling Missing Data:**\n    * If a field (e.g., `Idealer Arbeitstag`) says \"Keine Angabe\", **completely IGNORE it**. Do not mention it in the analysis.\n\n2.  **Check for \"The Minimalist/Burnout\" (On existing answers only):**\n    * Look at `Frühere Tätigkeit` and `Hobbys`.\n    * *Trigger:* If *these specific answers* are extremely short (1-3 words) -> Write: \"Antworten sind sehr knapp. Verdacht auf Desinteresse.\"\n\n3.  **The Synthesis:**\n    * Combine `Hard Skills` + `Hobbys` to find hidden potential.\n\nempfehlung_ai (Recommendation): [STRING]\n**CRITICAL UPGRADE - STRATEGIC ROADMAP:**\nDo not write a simple one-liner. Generate a **Strategic Micro-Plan (3 sentences)**.\n1.  **The Immediate Target:** Best job/course for *now*.\n2.  **The Rationale:** Why it fits Strategy + Blockers.\n3.  **The Parallel Step:** If there is a gap (Diploma/Language), mention the critical next step.\n\n</INSTRUCTIONS_FOR_JSON_GENERATION>\n\nNow, analyze the INPUT DATA TO ANALYZE provided above. Follow all rules inside the <INSTRUCTIONS_FOR_JSON_GENERATION> tags. Your response MUST be only the JSON object, starting with {."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1568,
+        -400
+      ],
+      "id": "cd32efcd-1f51-4d4b-829a-6a7b0e9b2f4b",
+      "name": "Intake-Interview"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1568,
+        -256
+      ],
+      "id": "a3b8c1ee-02c5-4169-81ee-ef0a7aa76355",
+      "name": "OpenAI Chat Model5",
+      "credentials": {
+        "openAiApi": {
+          "id": "gQD2UdswSHBaaiil",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// This code node prepares the final data for the Supabase 'profile' table.\n\n// 1. Получаем проанализированный JSON от Агента 2 (Input)\nconst agentOutput = $input.item.json;\nconst analysisJsonString = agentOutput.output || agentOutput.text;\n\n// 2. 🚀 Получаем RAW Data (полные 22 поля)\nconst rawReportData = $('Code in JavaScript6').item.json;\n\n// 3. Validate and Parse\nif (!analysisJsonString || typeof analysisJsonString !== 'string') {\n    return [{ json: { error: \"Input from Agent 2 is empty or not a string.\" } }];\n}\n\nlet parsedData;\ntry {\n    let cleanString = analysisJsonString.replace(/```json\\n/g, '').replace(/\\n```/g, '').trim();\n    parsedData = JSON.parse(cleanString);\n} catch (e) {\n    return [{ json: { error: \"Не удалось распарсить JSON строку.\", raw_string: analysisJsonString } }];\n}\n\n// 4. Get external_id\nconst externalId = $('Telegram Trigger').item.json.message.from.id.toString();\n\nif (!externalId) {\n    return [{ json: { error: \"Не удалось получить external_id.\" } }];\n}\n\n// 5. Create the new object for Supabase\nconst supabaseObject = {\n    external_id: externalId,\n    status: \"complete\",\n\n    // --- ОСНОВНЫЕ ПОЛЯ ---\n    name: rawReportData.Name,\n    sprache: rawReportData.Sitzungssprache,\n    standort: rawReportData[\"Stadt und PLZ\"],\n    \n    // --- ТЕХНИЧЕСКИЕ ПОЛЯ (SNAKE_CASE) ---\n    anerkennung_des_abschlusses: rawReportData[\"Anerkennung des Abschlusses\"],\n    englischniveau: rawReportData.Englischniveau,\n    deutsch_telefon_selbsteinschaetzung: rawReportData[\"Deutsch (Telefon-Selbsteinschätzung)\"],\n    \n    // 🔥 НОВОЕ ПОЛЕ (Добавлено здесь!)\n    erfahrung_in_deutschland: rawReportData[\"Erfahrung in Deutschland\"] || null,\n\n    // --- АНАЛИЗ ---\n    suchstrategie: parsedData.suchstrategie,\n    zusammenfassung_ai: parsedData.zusammenfassung_ai,\n    blocker_ai: parsedData.blocker_ai,\n    hard_skills_ai: parsedData.hard_skills_ai,\n    soft_skills_ai: parsedData.soft_skills_ai,\n    potenzialanalyse_ai: parsedData.potenzialanalyse_ai,\n    empfehlung_ai: parsedData.empfehlung_ai\n};\n\nreturn [{\n    json: supabaseObject\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1872,
+        -400
+      ],
+      "id": "eb839845-5034-49aa-84af-c73982cfe97a",
+      "name": "Code in JavaScript7"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.empfehlung_ai.includes('Umschulung') || $json.empfehlung_ai.includes('Weiterbildung') }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "b3ff1379-b853-4af6-a304-32eb39778e7d"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "weiterbildung"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a11e9bcc-4e6a-47e2-97d0-543429d250a4",
+                    "leftValue": "",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "arbeit"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        2160,
+        -400
+      ],
+      "id": "4835cb9a-c8af-4e23-8c3c-0076ef4664c5",
+      "name": "Switch2"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "**Agent Role:**\nYou are \"KI Berater\", an empathetic and highly professional AI Career Navigator.\n\n**Primary Goal:**\nYou will receive a JSON input from the user. This JSON contains a deep analysis of the user. Your goal is to analyze this input and generate a **valid JSON object** containing the translated, user-facing text for the message AND the action buttons.\n\n**CRITICAL Final Output:**\nYour final output MUST be *only* the **valid JSON object**, starting with `{` and ending with `}`. Do not add any other text or markdown.\n\n---\n**INPUT DATA TO ANALYZE (FROM USER):**\n{{ $json }}\n---\n\n**FINAL INSTRUCTIONS: RULES FOR YOUR RESPONSE**\n\n<INSTRUCTIONS_FOR_AGENT>\n\n**1. Language Rule (CRITICAL):**\n* You MUST generate all text *only* in the language specified in the **`sprache`** field from the JSON input.\n\n**2. Tone Rule (Empathetic):**\n* Your tone must be professional, positive, and validating.\n* The `message_text` must start by greeting the user by their **`name`** (from the JSON).\n\n**3. Content Rule (Focus on Courses):**\n* The `message_text` MUST focus on the `Weiterbildung` / `Umschulung` path.\n* It must summarize the **`potenzialanalyse_ai`** in 1-2 simple sentences.\n* It must clearly list the 2-3 training areas from the **`empfehlung_ai`** (e.g., \"Produktionssteuerung\", \"Automatisierungstechnik\").\n\n**4. JSON Output Rule (CRITICAL):**\n* Your final output MUST be a valid JSON object with **three** keys: `message_text`, `yes_button_text`, `no_button_text`.\n* You MUST translate the content of all three keys into the user's `sprache` (language).\n* **`message_text`**: This must contain the full message, including the greeting (Rule 2), the content (Rule 3), AND the final call-to-action question.\n* **`yes_button_text`**: The text for the \"Yes\" button.\n* **`no_button_text`**: The text for the \"No\" button.\n\n**Example (if 'sprache' is 'RU'):**\n{\n  \"message_text\": \"Здравствуйте, Larisa! Я проанализировал ваши ответы... (и т.д.) ...Хотите, я немедленно поищу для вас реальные курсы по этим направлениям? Пожалуйста, используйте кнопки ниже, чтобы дать ответ.\",\n  \"yes_button_text\": \"Да, найти курсы\",\n  \"no_button_text\": \"Нет, спасибо\"\n}\n\n**Example (if 'sprache' is 'DE'):**\n{\n  \"message_text\": \"Hallo Larisa! Ich habe Ihre Antworten analysiert... (etc.) ...Möchten Sie, dass ich sofort nach realen Kursen in diesen Bereichen suche? Bitte benutzen Sie die Buttons unten.\",\n  \"yes_button_text\": \"Ja, Kurse finden\",\n  \"no_button_text\": \"Nein, danke\"\n}\n\n</INSTRUCTIONS_FOR_AGENT>"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2336,
+        -592
+      ],
+      "id": "3660b85d-7cd8-479f-b8b6-ad1a63c745c6",
+      "name": "Weiterbildung"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"message_text\": \"Пример текста сообщения для пользователя...\",\n  \"yes_button_text\": \"Текст для кнопки ДА\",\n  \"no_button_text\": \"Текст для кнопки НЕТ\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2496,
+        -480
+      ],
+      "id": "98916c6e-9d67-4b97-8d7e-e708f04eef8f",
+      "name": "Structured Output Parser1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "responsesApiEnabled": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        2336,
+        -480
+      ],
+      "id": "9e44fd87-74a4-42b3-8cee-bf51c23bdd21",
+      "name": "OpenAI Chat Model6",
+      "credentials": {
+        "openAiApi": {
+          "id": "DpjrAyRcYKUDJ1ad",
+          "name": "OpenAi account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        2320,
+        -224
+      ],
+      "id": "30e33d5a-92cf-4ce4-82da-915d9852ac05",
+      "name": "OpenAI Chat Model7",
+      "credentials": {
+        "openAiApi": {
+          "id": "DpjrAyRcYKUDJ1ad",
+          "name": "OpenAi account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"message_text\": \"Пример текста сообщения для пользователя...\",\n  \"yes_button_text\": \"Текст для кнопки ДА\",\n  \"no_button_text\": \"Текст для кнопки НЕТ\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2464,
+        -240
+      ],
+      "id": "f75a36c5-afd3-46ea-8487-9ae2f2a147ff",
+      "name": "Structured Output Parser2"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=**Agent Role:**\nYou are \"KI Berater\", an empathetic, wise, and highly professional AI Career Mentor. Your job is not just to process data, but to encourage the user.\n\n**Primary Goal:**\nAnalyze the user's deep profile (`potenzialanalyse_ai`, `empfehlung_ai`) and generate a warm, strategic proposal message in the user's language.\n\n**CRITICAL Final Output:**\nReturn *only* the **valid JSON object**. No markdown.\n\n---\n**INPUT DATA (FROM USER):**\n{{ $json }}\n---\n\n**FINAL INSTRUCTIONS: RULES FOR YOUR RESPONSE**\n\n<INSTRUCTIONS_FOR_AGENT>\n\n**1. Language Rule (CRITICAL):**\n* You MUST generate all text *only* in the language specified in the **`sprache`** field (RU, DE, UA, TR).\n\n**2. Dynamic Name Rule (CRITICAL):**\n* You MUST start with a warm greeting using the **EXACT name** found in the input JSON field `name`.\n* **WARNING:** Do NOT use \"Larisa\" or \"Max\" from examples. If the input says \"Alexander\", you MUST write \"Hello Alexander!\". If the input says \"Elena\", write \"Hello Elena!\".\n\n**3. Tone Rule (Human & Mentor-like):**\n* Do NOT sound like a robot reading a list. Sound like a partner who wants to help.\n* Use emojis sparingly but effectively (🚀, 💡, 🤝).\n\n**4. Content Logic (The \"Smart Brain\"):**\nConstruct the `message_text` using this flow:\n* **Validation:** Briefly summarize their strengths from `potenzialanalyse_ai` (e.g., \"I see you have great organizational skills...\").\n* **The Plan (Jobs):** Clearly state which Job Roles you recommend searching for right now (based on `hard_skills_ai` and `empfehlung_ai`).\n* **The Strategic Tip (CRITICAL):** Look at `empfehlung_ai`. If it mentions \"German course\", \"Diploma recognition\", or \"Upskilling\" as a parallel step, you **MUST** mention it gently.\n    * *Example phrasing:* \"To secure your long-term future, I also highly recommend starting your diploma recognition alongside this job search.\"\n* **Call to Action:** Ask if you should start the search for these specific vacancies.\n\n**5. JSON Output Rule (CRITICAL):**\n* Your final output MUST be a valid JSON object with exactly these three keys:\n* **`message_text`**: The full strategic message.\n* **`yes_button_text`**: Action-oriented (e.g., \"Yes, search for jobs\").\n* **`no_button_text`**: Polite decline (e.g., \"No, I want to change something\").\n\n**Example Output (Structure Only):**\n{\n  \"message_text\": \"Hello [Name from Input]! 👋 I've analyzed your profile. You have impressive experience in [Area]. \\n\\nBased on your goal, I recommend we look for positions like **[Job A]** and **[Job B]**. \\n\\n💡 *My advice:* Since your diploma isn't recognized yet, these roles are a great start, but I strongly suggest starting the recognition process in parallel.\\n\\nShall I find real vacancies for these roles in your region now?\",\n  \"yes_button_text\": \"Yes, start search 🚀\",\n  \"no_button_text\": \"No, I want to change something\"\n}\n\n</INSTRUCTIONS_FOR_AGENT>"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2320,
+        -352
+      ],
+      "id": "5ec8cf21-2fa1-479e-b5f8-4165fc96b27b",
+      "name": "Arbeit"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+        "text": "={{ $json.output.message_text }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.output.yes_button_text }}",
+                    "additionalFields": {
+                      "callback_data": "FIND_COURSES_737"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.output.no_button_text }}",
+                    "additionalFields": {
+                      "callback_data": "STOP"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2592,
+        -592
+      ],
+      "id": "ca8542dc-9a50-4878-9c37-a7a71761af7a",
+      "name": "Send a text message3",
+      "webhookId": "5133cc6f-1a7e-42df-b859-251c8d9dbb96",
+      "credentials": {
+        "telegramApi": {
+          "id": "rdmmLLSdiOYvNjx3",
+          "name": "Telegram account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+        "text": "={{ $json.output.message_text }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.output.yes_button_text }}",
+                    "additionalFields": {
+                      "callback_data": "FIND_COURSES_848"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.output.no_button_text }}",
+                    "additionalFields": {
+                      "callback_data": "FIND_COURSES_737"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2592,
+        -352
+      ],
+      "id": "a356968c-dc36-46e7-822d-721d556e9598",
+      "name": "Send a text message4",
+      "webhookId": "dda7a938-8a1a-45ab-abb4-7ff5b80de25a",
+      "credentials": {
+        "telegramApi": {
+          "id": "rdmmLLSdiOYvNjx3",
+          "name": "Telegram account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Edit Fields1').item.json.query }}",
+        "options": {
+          "systemMessage": "=\n**Agent Role:**\nYou are a high-quality, comfortable, and empathetic interviewer for job seekers in Germany.\n\n**Primary Goal:**\nYour goal is to conduct an interview using the `Question Scenario` below. You MUST follow all instructions in the `<FINAL_INSTRUCTIONS_FOR_AGENT>` block at the end of this prompt. Your final output must be *only* the structured report, with no other text.\n\n---\n**Question Scenario (OPTIMIZED SHORT VERSION)**\n\n(This is the list of questions you will ask. You will translate them one-by-one into the `SESSION_LANGUAGE` after it is locked.)\n\n1.  (Info Block - Do not ask, just state): \"Great, we will continue in [Name of Chosen Language]. Before we begin, I must get your consent to process your data to match you with potential employers. Your data will be stored securely in Germany.\"\n2.  (Question): \"Do you consent to this processing of your personal data?\" (Yes/No)\n    **(WAIT FOR ANSWER - See Consent Rule)**\n3.  (Ask only if 2 was \"Yes\"): \"Thank you. First, what is your full name?\"\n4.  \"Thank you. To search for job vacancies close to your home, I need to know your **city and postal code** (Postleitzahl or PLZ).\"\n5.  \"Do you have a driver's license?\" (Yes / No)\n6.  (Ask only if 5 was \"Yes\"): \"Do you own a car?\" (Yes / No)\n7.  \"Is your foreign professional qualification (e.g., degree, diploma) **formally recognized** in Germany (Anerkennung)? Please state Yes, No, or In Progress.\"\n8.  \"What is your English language level? (A1–C2 or 'none')\"\n9.  \"How confidently can you communicate in German over the phone? Please rate on a scale of 1 (very unsure) to 5 (very confident).\"\n10. \"Where did you work before coming to Germany? What was your specialty, and what were your specific responsibilities? (Short answer is fine)\"\n11. **(NEW QUESTION):** \"You have been living in Germany for some time. Have you had any work, study, or internship experience here? For example: Minijob, Internship (Praktikum), Courses (Weiterbildung), or Volunteering? Please tell me what you did and whether you liked it.\"\n12. \"Which work models are you considering? (Full-time, Part-time, Minijob)\"\n13. \"Do you have any health limitations or environments you must avoid (e.g., heavy lifting, allergies)?\"\n14. \"What is your priority right now: to find *any* job ASAP for income, or to find a job that matches your qualifications?\"\n15. **(BEHAVIORAL CHECK):** \"Tell me briefly about a work situation where something went wrong or you faced an unexpected problem. How did you react? Did you solve it yourself or ask for help?\"\n16. \"Last Question: Do you have any Hobbies or things you learned yourself? (e.g. Crafting, PC, Cooking). This helps me find hidden opportunities!\"\n\n**(STOP HERE. Do not ask further questions. Proceed to report generation.)**\n\n---\n**FINAL INSTRUCTIONS: RULES OF OPERATION**\n\nYou must read and follow ALL rules inside this block.\n\n<INSTRUCTIONS_FOR_AGENT>\n\n**1. Multilingual Operation Logic:**\n* **Prompt Language:** These instructions are in **English**. You must **NEVER** use English with the candidate.\n* **Target Languages:** You can conduct the interview in **German (DE)**, **Ukrainian (UA)**, **Russian (RU)**, or **Turkish (TR)**.\n* **Starting Language:** Your **very first message** to the user MUST be in GERMAN:\n    \"Guten Tag! Bevor wir beginnen, möchte ich wissen: Auf welcher Sprache möchten Sie das Interview führen – Deutsch, Ukrainisch, Russisch oder Türkisch?\"\n* **Language Locking:** You must analyze their choice and set an internal `SESSION_LANGUAGE` (DE, UA, RU, or TR).\n* **\"Sticky\" Language Rule:** Once the `SESSION_LANGUAGE` is locked, you must conduct the **ENTIRE** rest of the interview *only* in that language.\n\n**2. Core Interview Rules:**\n* **One by One:** Ask all questions briefly and one at a time.\n* **Mandatory Question (Question 4):** The City/Postal Code question **cannot be skipped**.\n* **Consent Rule (Question 2):** If answer is \"No\", stop immediately.\n\n**3. Verbatim Recording Rule:**\n* You must record the answers to the qualitative questions **verbatim and in full**.\n\n**4. Final Report Rules:**\n* **Trigger:** After you receive the answer to the LAST question (No. 16).\n* **Format:** It **MUST** begin *only* with the number `929` followed immediately by a newline.\n* **AUTO-FILL RULE (CRITICAL):** Since we removed some questions to make the interview shorter, you MUST fill the missing fields with the text **\"Keine Angabe\"** (No Data) in the final report. Do not leave them empty.\n* **Mapping Rule:**\n    * Map Answer 15 to `Unerwartetes Problem`.\n    * Map Answer 16 to `Leidenschaft/Hobby` AND `Selbst gelernt`.\n\n**Example Report Format (Strictly follow this in GERMAN):**\n929\nName: [Candidate's Name]\nSitzungssprache: [The locked SESSION_LANGUAGE]\nEinwilligung zur Datenverarbeitung: [Yes/No]\nStadt und PLZ: [City and Postal Code]\nFührerschein: [Yes/No]\nEigenes Auto: [Yes/No]\nAnerkennung des Abschlusses: [Yes/No/In Progress]\nEnglischniveau: [Level]\nDeutsch (Telefon-Selbsteinschätzung): [1-5]\nFrühere Tätigkeit: [Verbatim Answer from Q10]\nErfahrung in Deutschland: [Verbatim Answer from Q11]\nGewünschtes Arbeitsmodell: [Selected Work Model(s)]\nZu vermeidende Bedingungen: [Verbatim Answer from Q13]\nPriorität: [Verbatim answer from Q14]\nSelbst gelernt: [Verbatim Answer from Q16]\nLeidenschaft/Hobby: [Verbatim Answer from Q16]\nIdealer Arbeitstag: Keine Angabe\nUnerwartetes Problem: [Verbatim Answer from Q15]\nStolzes Ergebnis: Keine Angabe\nKomplexes erklären: Keine Angabe\nEinzigartigkeit/Motivation: Keine Angabe\n\n</INSTRUCTIONS_FOR_AGENT>"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        752,
+        -432
+      ],
+      "id": "a92f74d3-3d5b-4266-9354-88364470651d",
+      "name": "Interviewer"
+    },
+    {
+      "parameters": {
+        "tableId": "profile",
+        "dataToSend": "autoMapInputData"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        -400
+      ],
+      "id": "e29d4e48-6f57-478c-a13a-6a305c6ff361",
+      "name": "Create a row2",
+      "credentials": {
+        "supabaseApi": {
+          "id": "KbNOAJv6YjMDi3FY",
+          "name": "Supabase account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "profile",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "external_id",
+              "keyValue": "={{ $json.callback_query ? $json.callback_query.from.id : $json.message.from.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        80,
+        -240
+      ],
+      "id": "06689d17-8b52-4c9e-a096-3e3fbc6a6d36",
+      "name": "Get a row",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "SLeID1KVZwTXTsn0",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9de8c23a-9ce0-4b3d-97a8-c8eeaffc72f4",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        -240
+      ],
+      "id": "a97920d3-9a31-4c59-96c4-d949b3014f77",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "// [НАЧАЛО КОДА V8: Удаление дублей + ПРИОРИТЕТ СТРАТЕГИИ]\n\n// --- НАСТРОЙКИ ---\nconst MAX_JOBS_TOTAL = 30; \n// -----------------\n\n// 1. Получаем данные и Стратегию\nconst allJobs = $input.all();\nconst clientProfile = $('Get many rows1').first().json;\n// Определяем, что важнее: скорость или карьера\nconst isUrgent = (clientProfile.suchstrategie === \"Schnellstmöglich\");\n\nconst uniqueJobs = [];\nconst seenUrls = new Set();\n\n// 2. Удаляем дубликаты\nfor (const item of allJobs) {\n  const url = item.json.url;\n  if (url && !seenUrls.has(url)) {\n    seenUrls.add(url);\n    uniqueJobs.push(item.json);\n  }\n}\n\n// 3. Создаем Корзины\nconst buckets = {\n  \"strategy_specialist\": [], // Мечта / Удаленка\n  \"strategy_standard\": [],   // Офис / Смежное\n  \"strategy_quick\": [],      // Быстрый старт\n  \"other\": []\n};\n\nfor (const job of uniqueJobs) {\n  const type = job.strategy_type || \"other\";\n  if (buckets[type]) buckets[type].push(job);\n  else buckets[\"other\"].push(job);\n}\n\n// 4. Перемешиваем внутри корзин (чтобы был микс городов)\nfor (const key in buckets) {\n  buckets[key].sort(() => Math.random() - 0.5);\n}\n\n// 5. ОПРЕДЕЛЯЕМ ПОРЯДОК ПРИОРИТЕТА (Самое важное!)\nlet priorityOrder = [];\n\nif (isUrgent) {\n  // СТРАТЕГИЯ \"БЫСТРО\": Сначала простые работы, потом офис, в конце сложные\n  priorityOrder = [\"strategy_quick\", \"strategy_standard\", \"strategy_specialist\", \"other\"];\n} else {\n  // СТРАТЕГИЯ \"КВАЛИФИКАЦИЯ\": Сначала профильные, потом офис, в конце простые\n  priorityOrder = [\"strategy_specialist\", \"strategy_standard\", \"strategy_quick\", \"other\"];\n}\n\n// 6. ЗАПОЛНЯЕМ СПИСОК (Умная заливка)\nlet finalSelection = [];\n\n// Шаг А: Гарантированный минимум для разнообразия (по 2 шт каждого вида)\n// Чтобы даже при \"Срочно\" Лариса увидела хоть пару крутых вакансий\nfor (const key of priorityOrder) {\n    const taken = buckets[key].splice(0, 2); // Берем 2 и удаляем из корзины\n    finalSelection = finalSelection.concat(taken);\n}\n\n// Шаг Б: Заполняем остаток места (до 30) согласно ПРИОРИТЕТУ\n// Мы идем по очереди приоритетов. Если в \"Quick\" есть вакансии - берем их.\n// Если \"Quick\" кончились, переходим к \"Standard\".\nlet currentIndex = 0;\nwhile (finalSelection.length < MAX_JOBS_TOTAL) {\n    \n    // Проверяем, есть ли еще вакансии в корзинах\n    const allEmpty = priorityOrder.every(key => buckets[key].length === 0);\n    if (allEmpty) break; // Вакансии кончились совсем\n\n    const currentKey = priorityOrder[currentIndex];\n    \n    if (buckets[currentKey].length > 0) {\n        finalSelection.push(buckets[currentKey].shift());\n    } else {\n        // Если в приоритетной корзине пусто, идем к следующей по важности\n        currentIndex = (currentIndex + 1) % priorityOrder.length;\n        // Защита от бесконечного цикла, если текущая пуста, но другие нет\n        // (код просто перейдет на след итерацию while)\n        continue; \n    }\n    \n    // В \"Срочном\" режиме мы хотим брать больше из первых категорий.\n    // Поэтому мы сбрасываем индекс на 0 (Start) чаще.\n    // Но для простоты заполнения \"до краев\" линейный перебор тоже ок, \n    // так как массив priorityOrder уже отсортирован по важности.\n}\n\n// 7. Обрезаем, если вдруг перебор\nreturn finalSelection.slice(0, MAX_JOBS_TOTAL).map(job => ({ json: job }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        80
+      ],
+      "id": "e2627052-9119-4040-a2a1-f061475052ea",
+      "name": "Remove Duplicates"
+    },
+    {
+      "parameters": {
+        "jsCode": "// [НАЧАЛО КОДА: Умная выборка + СБОРЩИК В ОДИН ПАКЕТ]\n\n// --- НАСТРОЙКИ ---\nconst MAX_JOBS_TO_SEND = 7; \n// -----------------\n\nconst items = $input.all();\n\n// Функция для безопасного извлечения данных\nfunction getJson(item) {\n    return item.json || item;\n}\n\n// 1. Создаем \"корзины\"\nconst buckets = {\n  \"strategy_specialist\": [],\n  \"strategy_standard\": [],\n  \"strategy_quick\": [],\n  \"unknown\": []\n};\n\n// 2. Раскладываем вакансии\nfor (const item of items) {\n  const data = getJson(item);\n  const strategy = data.strategy_type || \"unknown\";\n  \n  if (buckets[strategy]) {\n    buckets[strategy].push(data);\n  } else {\n    buckets[\"unknown\"].push(data);\n  }\n}\n\n// 3. Собираем \"Карусель\"\nconst finalSelection = [];\nconst keys = Object.keys(buckets);\nlet emptyBucketsCount = 0;\n\n// Если вакансий меньше лимита, берем все сразу\nconst totalCount = items.length;\n\nif (totalCount <= MAX_JOBS_TO_SEND) {\n    // Просто берем все json данные\n    items.forEach(item => finalSelection.push(getJson(item)));\n} else {\n    // Иначе крутим карусель\n    while (finalSelection.length < MAX_JOBS_TO_SEND && emptyBucketsCount < keys.length) {\n      emptyBucketsCount = 0;\n      for (const key of keys) {\n        if (finalSelection.length >= MAX_JOBS_TO_SEND) break;\n        const bucket = buckets[key];\n        if (bucket.length > 0) {\n          finalSelection.push(bucket.shift());\n        } else {\n          emptyBucketsCount++;\n        }\n      }\n    }\n}\n\n// 4. !!! ГЛАВНОЕ ИЗМЕНЕНИЕ ЗДЕСЬ !!!\n// Мы возвращаем НЕ список элементов, а ОДИН элемент со списком внутри.\n\nreturn {\n  json: {\n    // Теперь все вакансии лежат внутри поля \"vacancies\"\n    vacancies: finalSelection \n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2336,
+        304
+      ],
+      "id": "a1b244b8-ae02-47e1-b3ef-c9953ae0d165",
+      "name": "Smart Selection"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Get many rows1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get many rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many rows": {
+      "main": [
+        [
+          {
+            "node": "Weiter_suche",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Weiter_suche",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weiter_suche": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregator v1": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Aggregator v1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Weiter_suche",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Aggregator v2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregator v2": {
+      "main": [
+        [
+          {
+            "node": "Scoring Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarizer": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Summarizer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scoring Engine": {
+      "main": [
+        [
+          {
+            "node": "Summarizer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many rows1": {
+      "main": [
+        [
+          {
+            "node": "Arbeit-suche",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Arbeit-suche",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Arbeit-suche",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Arbeit-suche": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Jobliste anfragen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jobliste anfragen": {
+      "main": [
+        [
+          {
+            "node": "Jobs aufteilen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jobs aufteilen": {
+      "main": [
+        [
+          {
+            "node": "Detail-URL erstellen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detail-URL erstellen": {
+      "main": [
+        [
+          {
+            "node": "Jobdetails anfragen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jobdetails anfragen": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Remove Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Information Extractor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Information Extractor": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "Create a row1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classifier",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript5": {
+      "main": [
+        [
+          {
+            "node": "Smart Selection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classifier": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Final Message Generator.",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Message Generator.": {
+      "main": [
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Interviewer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Interviewer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Interviewer",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript6": {
+      "main": [
+        [
+          {
+            "node": "Intake-Interview",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Intake-Interview",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intake-Interview": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript7": {
+      "main": [
+        [
+          {
+            "node": "Create a row2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch2": {
+      "main": [
+        [
+          {
+            "node": "Weiterbildung",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Arbeit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Weiterbildung",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model6": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Weiterbildung",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model7": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Arbeit",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser2": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Arbeit",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weiterbildung": {
+      "main": [
+        [
+          {
+            "node": "Send a text message3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Arbeit": {
+      "main": [
+        [
+          {
+            "node": "Send a text message4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interviewer": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row2": {
+      "main": [
+        [
+          {
+            "node": "Switch2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a row": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Information Extractor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Smart Selection": {
+      "main": [
+        [
+          {
+            "node": "Final Message Generator.",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "674b0e79-30ca-458f-a6ca-0179ed26c17c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1a9beff0675321d597077a6ac9e71c026a3c6f24d17796d6119941ac89985f9d"
+  },
+  "id": "HyqZiSwlwFJjANUT",
+  "tags": []
+}
